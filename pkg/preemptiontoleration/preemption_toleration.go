@@ -171,13 +171,19 @@ func ExemptedFromPreemption(
 	}
 	scheduledAt := scheduledCondition.LastTransitionTime.Time
 
+	// Toleration seconds
+	tolerationDuration := time.Duration(policy.TolerationSeconds) * time.Second
+
 	// GPU idle duration
 	gpuIdleDuration := time.Duration(policy.GpuIdleSeconds) * time.Second
 
 	klog.Info("GPU idle seconds ", gpuIdleDuration)
+	// Pod still under gpu idle seconds, can be exempted
+	if scheduledAt.Add(gpuIdleDuration).After(now) || scheduledAt.Add(tolerationDuration).After(now) {
+		return true, nil
+	}
 
 	cs := fh.ClientSet()
-
 	prometheusServiceIP, err := utils.GetPromServiceIP(cs)
 	if err != nil {
 		klog.Error("issue with fetching prometheus service ip")
@@ -185,12 +191,6 @@ func ExemptedFromPreemption(
 
 	// convert to string
 	gpuIdleSecondsStr := strconv.FormatInt(policy.GpuIdleSeconds, 10)
-
-	// Pod still under gpu idle seconds, can be exempted
-	if !scheduledAt.Add(gpuIdleDuration).After(now) {
-		return true, nil
-	}
-
 	// Pod crossed idle seconds, need to figure out if it's still being used
 	avgGPUUsage := utils.CalculateAverageGPUUsage(victimCandidate.Name, victimCandidate.Namespace, prometheusServiceIP, gpuIdleSecondsStr)
 	// For a pod with lower priority, check if it can be exempted from the preemption.
@@ -201,7 +201,6 @@ func ExemptedFromPreemption(
 		return true, nil
 	}
 	klog.Info("Pod can be considered for killing", victimCandidate.Name)
-
 	return false, nil
 }
 
