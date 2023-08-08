@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"strconv"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -45,6 +46,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/util"
 	"k8s.io/utils/clock"
 	"sigs.k8s.io/scheduler-plugins/apis/config"
+	"sigs.k8s.io/scheduler-plugins/pkg/preemptiontoleration/utils"
 )
 
 const (
@@ -123,6 +125,7 @@ func (pl *PreemptionToleration) PostFilter(ctx context.Context, state *framework
 func ExemptedFromPreemption(
 	victimCandidate, preemptor *v1.Pod,
 	pcLister schedulinglisters.PriorityClassLister,
+	fh framework.Handle,
 	now time.Time,
 ) (bool, error) {
 	if victimCandidate.Spec.PriorityClassName == "" {
@@ -167,9 +170,39 @@ func ExemptedFromPreemption(
 		return true, nil
 	}
 	scheduledAt := scheduledCondition.LastTransitionTime.Time
-	tolerationDuration := time.Duration(policy.TolerationSeconds) * time.Second
 
-	return scheduledAt.Add(tolerationDuration).After(now), nil
+	// GPU idle duration
+	gpuIdleDuration := time.Duration(policy.GpuIdleSeconds) * time.Second
+
+	klog.Info("GPU idle seconds ", gpuIdleDuration)
+
+	cs := fh.ClientSet()
+
+	prometheusServiceIP, err := utils.GetPromServiceIP(cs)
+	if err != nil {
+		klog.Error("issue with fetching prometheus service ip")
+	}
+
+	// convert to string
+	gpuIdleSecondsStr := strconv.FormatInt(policy.GpuIdleSeconds, 10)
+
+	// Pod still under gpu idle seconds, can be exempted
+	if !scheduledAt.Add(gpuIdleDuration).After(now) {
+		return true, nil
+	}
+
+	// Pod crossed idle seconds, need to figure out if it's still being used
+	avgGPUUsage := utils.CalculateAverageGPUUsage(victimCandidate.Name, victimCandidate.Namespace, prometheusServiceIP, gpuIdleSecondsStr)
+	// For a pod with lower priority, check if it can be exempted from the preemption.
+	klog.Info("Average GPU Usage : ", avgGPUUsage)
+
+	// If average GPU usage for the idle seconds is >0, then exempt the pod
+	if avgGPUUsage > 0 {
+		return true, nil
+	}
+	klog.Info("Pod can be considered for killing", victimCandidate.Name)
+
+	return false, nil
 }
 
 // SelectVictimsOnNode finds minimum set of pods on the given node that should
@@ -211,8 +244,7 @@ func (pl *PreemptionToleration) SelectVictimsOnNode(
 			continue
 		}
 
-		// For a pod with lower priority, check if it can be exempted from the preemption.
-		exempted, err := ExemptedFromPreemption(pi.Pod, preemptor, pl.priorityClassLister, pl.curTime)
+		exempted, err := ExemptedFromPreemption(pi.Pod, preemptor, pl.priorityClassLister, pl.fh, pl.curTime)
 		if err != nil {
 			klog.ErrorS(err, "Encountered error while selecting victims on node", "Node", nodeInfo.Node().Name)
 			return nil, 0, framework.AsStatus(err)

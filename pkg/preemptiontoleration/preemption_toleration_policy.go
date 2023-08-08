@@ -26,6 +26,7 @@ const (
 	AnnotationKeyPrefix                     = "preemption-toleration.scheduling.x-k8s.io/"
 	AnnotationKeyMinimumPreemptablePriority = AnnotationKeyPrefix + "minimum-preemptable-priority"
 	AnnotationKeyTolerationSeconds          = AnnotationKeyPrefix + "toleration-seconds"
+	AnnotationGPUIdleSeconds                = AnnotationKeyPrefix + "gpu-idle-seconds"
 )
 
 // Policy holds preemption toleration policy configuration.  Each property values are annotated in the target PriorityClass resource.
@@ -50,6 +51,9 @@ type Policy struct {
 	// lower than MinimumPreemptablePriority won't be able to preempt it.
 	// This value affects scheduled pods only (no effect on nominated pods).
 	TolerationSeconds int64
+
+	// GPUIdleSeconds defines how long a pod needs to be on mimimal GPU usage before it can be preempted
+	GpuIdleSeconds int64
 }
 
 func parsePreemptionTolerationPolicy(
@@ -77,6 +81,17 @@ func parsePreemptionTolerationPolicy(
 			return nil, err
 		}
 		policy.TolerationSeconds = tolerationSeconds
+	}
+
+	gpuIdleSecondsStr, ok := pc.Annotations[AnnotationGPUIdleSeconds]
+	if !ok {
+		policy.GpuIdleSeconds = 0 // default value
+	} else {
+		gpuIdleSeconds, err := strconv.ParseInt(gpuIdleSecondsStr, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		policy.GpuIdleSeconds = gpuIdleSeconds
 	}
 
 	return policy, nil

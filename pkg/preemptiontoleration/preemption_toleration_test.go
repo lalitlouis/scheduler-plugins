@@ -78,6 +78,7 @@ func TestExemptedFromPreemptionWithUnparsalbePolicy(t *testing.T) {
 			victimCandidatePriorityClass: makePriorityClass(1, map[string]string{
 				AnnotationKeyMinimumPreemptablePriority: "10",
 				AnnotationKeyTolerationSeconds:          "a",
+				AnnotationGPUIdleSeconds:                "a",
 			}),
 			victimCandidate: makePod().PriorityClassName(testPriorityClassName).Priority(3).Obj(),
 			preemptor:       makePod().PreemptionPolicy(corev1.PreemptLowerPriority).Priority(2).Obj(),
@@ -158,6 +159,7 @@ func TestExemptedFromPreemptionWithPolicyWhenPreemptorPriorityLowerThanMinimumPr
 			victimCandidatePriorityClass: makePriorityClass(victimCandidatePriority, map[string]string{
 				AnnotationKeyMinimumPreemptablePriority: fmt.Sprintf("%d", minimumPreemptablePriority),
 				AnnotationKeyTolerationSeconds:          fmt.Sprintf("%d", 0),
+				AnnotationGPUIdleSeconds:                fmt.Sprintf("%d", 0),
 			}),
 			victimCandidate: makePod().PriorityClassName(testPriorityClassName).ScheduledAt(now).Priority(victimCandidatePriority).Obj(),
 			preemptor:       preemptor,
@@ -169,6 +171,7 @@ func TestExemptedFromPreemptionWithPolicyWhenPreemptorPriorityLowerThanMinimumPr
 			victimCandidatePriorityClass: makePriorityClass(victimCandidatePriority, map[string]string{
 				AnnotationKeyMinimumPreemptablePriority: fmt.Sprintf("%d", minimumPreemptablePriority),
 				AnnotationKeyTolerationSeconds:          fmt.Sprintf("%d", -1),
+				AnnotationGPUIdleSeconds:                fmt.Sprintf("%d", -1),
 			}),
 			victimCandidate: makePod().PriorityClassName(testPriorityClassName).ScheduledAt(time.Time{}).Priority(victimCandidatePriority).Obj(), // scheduled very long time ago
 			preemptor:       preemptor,
@@ -180,6 +183,7 @@ func TestExemptedFromPreemptionWithPolicyWhenPreemptorPriorityLowerThanMinimumPr
 			victimCandidatePriorityClass: makePriorityClass(victimCandidatePriority, map[string]string{
 				AnnotationKeyMinimumPreemptablePriority: fmt.Sprintf("%d", minimumPreemptablePriority),
 				AnnotationKeyTolerationSeconds:          fmt.Sprintf("%d", 100),
+				AnnotationGPUIdleSeconds:                fmt.Sprintf("%d", 100),
 			}),
 			victimCandidate: makePod().PriorityClassName(testPriorityClassName).ScheduledAt(now.Add(-101 * time.Second)).Priority(victimCandidatePriority).Obj(),
 			preemptor:       preemptor,
@@ -227,6 +231,7 @@ func (tt testCase) run(t *testing.T) {
 	got, err := ExemptedFromPreemption(
 		tt.victimCandidate, tt.preemptor,
 		informersFactory.Scheduling().V1().PriorityClasses().Lister(),
+		nil,
 		now,
 	)
 
