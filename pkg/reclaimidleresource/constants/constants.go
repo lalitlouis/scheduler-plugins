@@ -28,3 +28,15 @@ const PrometheusNamespace = "prometheus"
 
 // PrometheusPort is the port service
 const PrometheusPort = "9090"
+
+/*
+Plugin
+*/
+
+// ResourceTypeCPU
+const ResourceTypeCPU = "cpu"
+
+// ResourceTypeGPU
+const ResourceTypeGPU = "gpu"
+
+//

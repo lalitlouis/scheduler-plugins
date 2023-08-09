@@ -59,16 +59,27 @@ func RunPromQuery(query string, ip string) (model.Value, error) {
 	return result, nil
 }
 
-func getAverageGPUUsageCalculationMetricString(podName, podNamespace, period string) string {
-	gpuUsageString := `scalar(avg_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{exported_pod="%s", exported_namespace="%s"}[%s]))`
-	finalMetricStr := fmt.Sprintf(gpuUsageString, podName, podNamespace, period)
-	klog.Info(finalMetricStr)
-	return finalMetricStr
+func getAverageUsageCalculationMetricString(resourceType, podName, podNamespace, period string) string {
+
+	resourceMetricCalculationStr := ""
+	switch resourceType {
+	case constants.ResourceTypeGPU:
+		gpuUsageString := `scalar(avg_over_time(DCGM_FI_PROF_GR_ENGINE_ACTIVE{exported_pod="%s", exported_namespace="%s"}[%s]))`
+		resourceMetricCalculationStr = fmt.Sprintf(gpuUsageString, podName, podNamespace, period)
+
+	case constants.ResourceTypeCPU:
+		cpuUsageString := `scalar(sum(rate(container_cpu_usage_seconds_total{pod="%s",namespace="%s",container!=""}[%s])) by (pod_name))`
+		resourceMetricCalculationStr = fmt.Sprintf(cpuUsageString, podName, podNamespace, period)
+
+	}
+	klog.Info("Average Resource usage calculation metric string  - ", resourceMetricCalculationStr)
+	return resourceMetricCalculationStr
 }
 
 // CalculateAverageGPUUsage retrurns the average gpu usage for the period mentioned
-func CalculateAverageGPUUsage(podName, podNamespace, ip string, period string) float64 {
-	measureMetric := getAverageGPUUsageCalculationMetricString(podName, podNamespace, period+"s")
+func CalculateAverageUsage(resourceType, podName, podNamespace, ip string, period string) float64 {
+
+	measureMetric := getAverageUsageCalculationMetricString(resourceType, podName, podNamespace, period+"s")
 	promOutput, _ := GetScalarMetricValue(measureMetric, ip)
 	return promOutput.Value
 }

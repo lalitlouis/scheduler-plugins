@@ -172,27 +172,6 @@ func ExemptedFromPreemption(
 	scheduledAt := scheduledCondition.LastTransitionTime.Time
 	tolerationDuration := time.Duration(policy.TolerationSeconds) * time.Second
 
-	cs := fh.ClientSet()
-	prometheusServiceIP, err := utils.GetPromServiceIP(cs)
-	if err != nil {
-		klog.Error("issue with fetching prometheus service ip")
-	}
-
-	resourceActualAvgUsage := 0.0
-	switch resourceType := policy.ResourceType; resourceType {
-	case "gpu":
-		klog.Info("Resource type GPU with idling seconds ", policy.ResourceIdleSeconds, "and idle usage threshold of ", policy.ResourceIdleUsageThreshold)
-		// convert to string
-		gpuIdleSecondsStr := strconv.FormatInt(policy.ResourceIdleSeconds, 10)
-		// Pod crossed idle seconds, need to figure out if it's still being used
-		resourceActualAvgUsage := utils.CalculateAverageGPUUsage(victimCandidate.Name, victimCandidate.Namespace, prometheusServiceIP, gpuIdleSecondsStr)
-		// For a pod with lower priority, check if it can be exempted from the preemption.
-		klog.Info("Average GPU Usage : ", resourceActualAvgUsage)
-
-	case "cpu":
-		klog.Info("Resource type CPU with idling seconds ", policy.ResourceIdleSeconds, "and idle usage threshold of ", policy.ResourceIdleUsageThreshold)
-	}
-
 	// Resource idle duration
 	resourceIdleDuration := time.Duration(policy.ResourceIdleSeconds) * time.Second
 
@@ -200,6 +179,21 @@ func ExemptedFromPreemption(
 	if scheduledAt.Add(resourceIdleDuration).After(now) || scheduledAt.Add(tolerationDuration).After(now) {
 		return true, nil
 	}
+
+	cs := fh.ClientSet()
+	prometheusServiceIP, err := utils.GetPromServiceIP(cs)
+	if err != nil {
+		return true, err
+	}
+
+	resourceActualAvgUsage := 0.0
+	klog.Info("Resource type ", policy.ResourceType, " with idle seconds ", policy.ResourceIdleSeconds, " and idle usage threshold of ", policy.ResourceIdleUsageThreshold)
+	// convert to string
+	resourceIdleSecondsStr := strconv.FormatInt(policy.ResourceIdleSeconds, 10)
+	// Pod crossed idle seconds, need to figure out if it's still being used
+	resourceActualAvgUsage = utils.CalculateAverageUsage(policy.ResourceType, victimCandidate.Name, victimCandidate.Namespace, prometheusServiceIP, resourceIdleSecondsStr)
+	// For a pod with lower priority, check if it can be exempted from the preemption.
+	klog.Info("Average resource Usage over the idle seconds : ", resourceActualAvgUsage)
 
 	// If average resource usage for the idle seconds is >0, then exempt the pod
 	if resourceActualAvgUsage > policy.ResourceIdleUsageThreshold {
