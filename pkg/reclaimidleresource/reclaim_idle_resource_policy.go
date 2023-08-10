@@ -35,15 +35,18 @@ const (
 // Policy holds reclaimidleresource policy configuration.  Each property values are annotated in the target PriorityClass resource.
 // Example:
 //
-//	kind: PriorityClass
-//	  metadata:
-//	  name: toleration-policy-sample
-//	  annotation:
-//	    reclaim-idle-resource.scheduling.x-k8s.io/minimum-preemptable-priority: "10000"
-//	    reclaim-idle-resource.scheduling.x-k8s.io/toleration-seconds: "3600"
-//	    reclaim-idle-resource.scheduling.x-k8s.io/resource-type: "gpu"
-//	    reclaim-idle-resource.scheduling.x-k8s.io/resource-idle-seconds: "3600"
-//	    reclaim-idle-resource.scheduling.x-k8s.io/resource-idle-usage-threshold: "0"
+// apiVersion: scheduling.k8s.io/v1
+// kind: PriorityClass
+// metadata:
+//   name: dev-pc
+//   annotations:
+//     reclaim-idle-resource.scheduling.x-k8s.io/minimum-preemptable-priority: "10000"
+//     reclaim-idle-resource.scheduling.x-k8s.io/toleration-seconds: "60"
+//     reclaim-idle-resource.scheduling.x-k8s.io/cpu-idle-seconds: "180"
+//     reclaim-idle-resource.scheduling.x-k8s.io/gpu-idle-seconds: "180"
+//     reclaim-idle-resource.scheduling.x-k8s.io/cpu-idle-usage-threshold: "0.0"
+//     reclaim-idle-resource.scheduling.x-k8s.io/gpu-idle-usage-threshold: "0.0"
+// value: 8000
 
 type Policy struct {
 	// MinimumPreemptablePriority specifies the minimum priority value that can preempt this priority class.
