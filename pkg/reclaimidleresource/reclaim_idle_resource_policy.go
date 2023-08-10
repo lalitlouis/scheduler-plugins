@@ -26,9 +26,10 @@ const (
 	AnnotationKeyPrefix                     = "reclaim-idle-resource.scheduling.x-k8s.io/"
 	AnnotationKeyMinimumPreemptablePriority = AnnotationKeyPrefix + "minimum-preemptable-priority"
 	AnnotationKeyTolerationSeconds          = AnnotationKeyPrefix + "toleration-seconds"
-	AnnotationKeyResourceType               = AnnotationKeyPrefix + "resource-type"
-	AnnotationKeyResourceIdleSeconds        = AnnotationKeyPrefix + "resource-idle-seconds"
-	AnnotationKeyResourceIdleUsageThreshold = AnnotationKeyPrefix + "resource-idle-usage-threshold"
+	AnnotationKeyCPUIdleSeconds             = AnnotationKeyPrefix + "cpu-idle-seconds"
+	AnnotationKeyGPUIdleSeconds             = AnnotationKeyPrefix + "gpu-idle-seconds"
+	AnnotationKeyCPUIdleUsageThreshold      = AnnotationKeyPrefix + "cpu-idle-usage-threshold"
+	AnnotationKeyGPUIdleUsageThreshold      = AnnotationKeyPrefix + "gpu-idle-usage-threshold"
 )
 
 // Policy holds reclaimidleresource policy configuration.  Each property values are annotated in the target PriorityClass resource.
@@ -58,14 +59,17 @@ type Policy struct {
 	// This value affects scheduled pods only (no effect on nominated pods).
 	TolerationSeconds int64
 
-	// ResourceType refers to the type of resource that needs to be managed
-	ResourceType string
+	// CPUIdleSeconds specifies how long the priority class can tolerate the resource to be idle.
+	CPUIdleSeconds int64
 
-	// ResourceIdleSeconds specifies how long the priority class can tolerate the resource to be idle.
-	ResourceIdleSeconds int64
+	// GPUIdleSeconds specifies how long the priority class can tolerate the resource to be idle.
+	GPUIdleSeconds int64
 
-	// ResourceIdleUsageThreshold refers to actual idle usage to be considered. Defaults to 0
-	ResourceIdleUsageThreshold float64
+	// CPUIdleUsageThreshold refers to actual idle usage to be considered. Defaults to 0
+	CPUIdleUsageThreshold float64
+
+	// GPUIdleUsageThreshold refers to actual idle usage to be considered. Defaults to 0
+	GPUIdleUsageThreshold float64
 }
 
 func parseReclaimIdleResourcesPolicy(
@@ -95,33 +99,48 @@ func parseReclaimIdleResourcesPolicy(
 		policy.TolerationSeconds = tolerationSeconds
 	}
 
-	resourceTypeStr, ok := pc.Annotations[AnnotationKeyResourceType]
+	cpuIdleSecondsStr, ok := pc.Annotations[AnnotationKeyCPUIdleSeconds]
 	if !ok {
-		policy.ResourceType = "cpu" // default value
+		policy.CPUIdleSeconds = 0 // default value
 	} else {
-		policy.ResourceType = resourceTypeStr
-	}
-
-	resourceIdleSecondsStr, ok := pc.Annotations[AnnotationKeyResourceIdleSeconds]
-	if !ok {
-		policy.ResourceIdleSeconds = 0 // default value
-	} else {
-		resourceIdleSeconds, err := strconv.ParseInt(resourceIdleSecondsStr, 10, 64)
+		cpuIdleSeconds, err := strconv.ParseInt(cpuIdleSecondsStr, 10, 64)
 		if err != nil {
 			return nil, err
 		}
-		policy.ResourceIdleSeconds = resourceIdleSeconds
+		policy.CPUIdleSeconds = cpuIdleSeconds
 	}
 
-	resourceThresholdUsageStr, ok := pc.Annotations[AnnotationKeyResourceIdleUsageThreshold]
+	gpuIdleSecondsStr, ok := pc.Annotations[AnnotationKeyGPUIdleSeconds]
 	if !ok {
-		policy.ResourceIdleUsageThreshold = 0.0 // default value
+		policy.GPUIdleSeconds = 0 // default value
 	} else {
-		resourceIdleUsageThreshold, err := strconv.ParseFloat(resourceThresholdUsageStr, 64)
+		gpuIdleSeconds, err := strconv.ParseInt(gpuIdleSecondsStr, 10, 64)
 		if err != nil {
 			return nil, err
 		}
-		policy.ResourceIdleUsageThreshold = resourceIdleUsageThreshold
+		policy.GPUIdleSeconds = gpuIdleSeconds
+	}
+
+	cpuThresholdUsageStr, ok := pc.Annotations[AnnotationKeyCPUIdleUsageThreshold]
+	if !ok {
+		policy.CPUIdleUsageThreshold = 0.0 // default value
+	} else {
+		cpuIdleUsageThreshold, err := strconv.ParseFloat(cpuThresholdUsageStr, 64)
+		if err != nil {
+			return nil, err
+		}
+		policy.CPUIdleUsageThreshold = cpuIdleUsageThreshold
+	}
+
+	gpuThresholdUsageStr, ok := pc.Annotations[AnnotationKeyGPUIdleUsageThreshold]
+	if !ok {
+		policy.GPUIdleUsageThreshold = 0.0 // default value
+	} else {
+		gpuIdleUsageThreshold, err := strconv.ParseFloat(gpuThresholdUsageStr, 64)
+		if err != nil {
+			return nil, err
+		}
+		policy.GPUIdleUsageThreshold = gpuIdleUsageThreshold
 	}
 
 	return policy, nil

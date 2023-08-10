@@ -46,6 +46,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/util"
 	"k8s.io/utils/clock"
 	"sigs.k8s.io/scheduler-plugins/apis/config"
+	"sigs.k8s.io/scheduler-plugins/pkg/reclaimidleresource/constants"
 	"sigs.k8s.io/scheduler-plugins/pkg/reclaimidleresource/utils"
 )
 
@@ -172,33 +173,43 @@ func ExemptedFromPreemption(
 	scheduledAt := scheduledCondition.LastTransitionTime.Time
 	tolerationDuration := time.Duration(policy.TolerationSeconds) * time.Second
 
-	// Resource idle duration
-	resourceIdleDuration := time.Duration(policy.ResourceIdleSeconds) * time.Second
+	// cpu idle duration
+	cpuIdleSecondsDuration := time.Duration(policy.CPUIdleSeconds) * time.Second
+
+	// gpu idle duration
+	gpuIdleSecondsDuration := time.Duration(policy.GPUIdleSeconds) * time.Second
 
 	// Pod still under resource idle seconds, can be exempted
-	if scheduledAt.Add(resourceIdleDuration).After(now) || scheduledAt.Add(tolerationDuration).After(now) {
+	if scheduledAt.Add(cpuIdleSecondsDuration).After(now) || scheduledAt.Add(gpuIdleSecondsDuration).After(now) || scheduledAt.Add(tolerationDuration).After(now) {
 		return true, nil
 	}
 
 	cs := fh.ClientSet()
 	prometheusServiceIP, err := utils.GetPromServiceIP(cs)
 	if err != nil {
-		return true, err
+		return false, err
 	}
 
-	resourceActualAvgUsage := 0.0
-	klog.Info("Resource type ", policy.ResourceType, " with idle seconds ", policy.ResourceIdleSeconds, " and idle usage threshold of ", policy.ResourceIdleUsageThreshold)
-	// convert to string
-	resourceIdleSecondsStr := strconv.FormatInt(policy.ResourceIdleSeconds, 10)
-	// Pod crossed idle seconds, need to figure out if it's still being used
-	resourceActualAvgUsage = utils.CalculateAverageUsage(policy.ResourceType, victimCandidate.Name, victimCandidate.Namespace, prometheusServiceIP, resourceIdleSecondsStr)
-	// For a pod with lower priority, check if it can be exempted from the preemption.
-	klog.Info("Average resource Usage over the idle seconds : ", resourceActualAvgUsage)
+	// check if avg cpu usage is greater than threshold
+	cpuIdleSecondsStr := strconv.FormatInt(policy.CPUIdleSeconds, 10)
+	cpuActualAvgUsage := utils.CalculateAverageUsage(constants.ResourceTypeCPU, victimCandidate.Name, victimCandidate.Namespace, prometheusServiceIP, cpuIdleSecondsStr)
 
-	// If average resource usage for the idle seconds is >0, then exempt the pod
-	if resourceActualAvgUsage > policy.ResourceIdleUsageThreshold {
+	klog.Info("Resource type ", constants.ResourceTypeCPU, " with idle seconds ", policy.CPUIdleSeconds, " and idle usage threshold of ", policy.CPUIdleUsageThreshold, " has average usage of ", cpuActualAvgUsage)
+
+	if cpuActualAvgUsage > policy.CPUIdleUsageThreshold {
 		return true, nil
 	}
+
+	// check if avg gpu usage is greater than threshold
+	gpuIdleSecondsStr := strconv.FormatInt(policy.GPUIdleSeconds, 10)
+	gpuActualAvgUsage := utils.CalculateAverageUsage(constants.ResourceTypeGPU, victimCandidate.Name, victimCandidate.Namespace, prometheusServiceIP, gpuIdleSecondsStr)
+
+	klog.Info("Resource type ", constants.ResourceTypeGPU, " with idle seconds ", policy.GPUIdleSeconds, " and idle usage threshold of ", policy.GPUIdleUsageThreshold, " has average usage of ", gpuActualAvgUsage)
+
+	if gpuActualAvgUsage > policy.GPUIdleUsageThreshold {
+		return true, nil
+	}
+
 	klog.Info("Pod ", victimCandidate.Name, " can be considered for killing.")
 	return false, nil
 }
@@ -238,7 +249,7 @@ func (pl *ReclaimIdleResource) SelectVictimsOnNode(
 	// from the node and check if the given pod can be scheduled.
 	podPriority := corev1helpers.PodPriority(preemptor)
 	for _, pi := range nodeInfo.Pods {
-		if corev1helpers.PodPriority(pi.Pod) >= podPriority {
+		if corev1helpers.PodPriority(pi.Pod) > podPriority {
 			continue
 		}
 
