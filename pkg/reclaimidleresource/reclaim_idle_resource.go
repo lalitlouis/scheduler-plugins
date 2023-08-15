@@ -146,7 +146,7 @@ func ExemptedFromPreemption(
 	}
 
 	// check it can tolerate the preemption in terms of priority value
-	policy, err := parseReclaimIdleResourcesPolicy(*victimPriorityClass)
+	policy, err := parseReclaimIdleResourcePolicy(*victimPriorityClass)
 	if err != nil {
 		// if any error raised, no toleration at all
 		klog.ErrorS(err, "Failed to parse preemption toleration policy of victim candidate's priorityclass.  This victim candidate can't tolerate the preemption",

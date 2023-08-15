@@ -4,7 +4,7 @@
 
 scheduler:
   name: scheduler-plugins-scheduler
-  image: lalitlouis/plugin-scheduler:v7
+  image: lalitlouis/plugin-scheduler:v8
   replicaCount: 1
   leaderElect: false
 
@@ -18,6 +18,14 @@ controller:
 
 plugins:
   enabled: ["ReclaimIdleResource"]
+
+profile:
+  plugins:
+    postFilter:
+      enabled:
+      - name: ReclaimIdleResource
+      disabled:
+      - name: DefaultPreemption
 
 # Customize the enabled plugins' config.
 # Refer to the "pluginConfig" section of manifests/<plugin>/scheduler-config.yaml.

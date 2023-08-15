@@ -75,7 +75,7 @@ type Policy struct {
 	GPUIdleUsageThreshold float64
 }
 
-func parseReclaimIdleResourcesPolicy(
+func parseReclaimIdleResourcePolicy(
 	pc schedulingv1.PriorityClass,
 ) (*Policy, error) {
 	policy := &Policy{}

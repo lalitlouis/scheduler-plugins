@@ -13,12 +13,7 @@ data:
     profiles:
     # Compose all plugins in one profile
     - schedulerName: {{ .Values.scheduler.name }}
-      plugins:
-        postFilter:
-          enabled:
-          - name: ReclaimIdleResource
-          disabled:
-          - name: DefaultPreemption
+      {{- toYaml .Values.profile | nindent 6 }}
 
   {{- /* TODO: wire CRD installation with enabled plugins. */}}
 {{- end }}
