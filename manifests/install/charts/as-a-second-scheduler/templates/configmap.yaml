@@ -13,19 +13,7 @@ data:
     profiles:
     # Compose all plugins in one profile
     - schedulerName: {{ .Values.scheduler.name }}
-      plugins:
-        multiPoint:
-          enabled:
-          {{- range $.Values.plugins.enabled }}
-          - name: {{ title . }}
-          {{- end }}
-          disabled:
-          {{- range $.Values.plugins.disabled }}
-          - name: {{ title . }}
-          {{- end }}
-      {{- if $.Values.pluginConfig }}
-      pluginConfig: {{ toYaml $.Values.pluginConfig | nindent 6 }}
-      {{- end }}
+      {{- toYaml .Values.profile | nindent 6 }}
 
   {{- /* TODO: wire CRD installation with enabled plugins. */}}
 {{- end }}
